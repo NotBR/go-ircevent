@@ -1,7 +1,6 @@
 package irc
 
 import (
-	"regexp"
 	"strings"
 )
 
@@ -17,38 +16,44 @@ type User struct {
 	Mode string
 }
 
-var mode_split = regexp.MustCompile("([%@+]{0,1})(.+)") //Half-Op, //Op, //Voice
+func (irc *Connection) isModeChar(c rune) bool {
+	_, ok := irc.KnownFeatures.PrefixModesDisplay[c]
+	return ok
+}
 
 func (irc *Connection) SetupNickTrack() {
+	// relies on ISUPPORT so introduce it
+	irc.SetupFeatureDetect()
 	// 353: RPL_NAMEREPLY per RFC1459
 	// will typically receive this on channel joins and when NAMES is
-	// called via GetNicksOnCHan
+	// called via GetNicksOnChan
 	irc.AddCallback("353", func(e *Event) {
 		// get chan
 		channelName := e.Arguments[2]
-		// check if chan exists in map
-		_, ok := irc.Channels[channelName]
 
-		// if not make one
-		if ok != true {
+		// check if chan exists in map, if not make one
+		if _, ok := irc.Channels[channelName]; !ok {
 			irc.Channels[channelName] = Channel{Users: make(map[string]User)}
 		}
-		// split the datat into a slice
+
 		for _, modenick := range strings.Split(e.Message(), " ") {
-			nickandmode := mode_split.FindStringSubmatch(modenick)
 			u := User{}
-			if len(nickandmode) == 3 {
-				if nickandmode[1] == "@" {
-					u.Mode = "+o" // Ooof should be mode struct?
-				} else if nickandmode[1] == "+" {
-					u.Mode = "+v" // Ooof should be mode struct?
-				} else if nickandmode[1] == "%" {
-					u.Mode = "+h"
+			idx := 0
+			for pos, c := range modenick {
+				if !irc.isModeChar(c) {
+					idx = pos
+					break
 				}
-				irc.Channels[channelName].Users[nickandmode[2]] = u
-			} else {
-				irc.Channels[channelName].Users[modenick] = u
 			}
+
+			if idx > 0 {
+				u.Mode = "+"
+				for _, mc := range modenick[0:idx] {
+					u.Mode += string(irc.KnownFeatures.PrefixModesDisplay[mc])
+				}
+			}
+
+			irc.Channels[channelName].Users[modenick[idx:]] = u
 		}
 	})
 

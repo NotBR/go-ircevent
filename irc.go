@@ -591,18 +591,20 @@ func IRC(nick, user string) *Connection {
 	}
 
 	irc := &Connection{
-		nick:        nick,
-		nickcurrent: nick,
-		user:        user,
-		Log:         log.New(os.Stdout, "", log.LstdFlags),
-		end:         make(chan struct{}),
-		Version:     VERSION,
-		KeepAlive:   4 * time.Minute,
-		Timeout:     1 * time.Minute,
-		PingFreq:    15 * time.Minute,
-		SASLMech:    "PLAIN",
-		QuitMessage: "",
-		Channels:    make(map[string]Channel),
+		nick:          nick,
+		nickcurrent:   nick,
+		user:          user,
+		Log:           log.New(os.Stdout, "", log.LstdFlags),
+		end:           make(chan struct{}),
+		Version:       VERSION,
+		KeepAlive:     4 * time.Minute,
+		Timeout:       1 * time.Minute,
+		PingFreq:      15 * time.Minute,
+		SASLMech:      "PLAIN",
+		QuitMessage:   "",
+		Channels:      make(map[string]Channel),
+		Features:      makeFeatures(),
+		KnownFeatures: makeKnownFeatures(),
 	}
 	irc.setupCallbacks()
 	return irc

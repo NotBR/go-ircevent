@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/thoja/go-ircevent"
 	"sort"
 	"time"
@@ -10,6 +11,7 @@ import (
 const channel = "#ggnet"
 const serverssl = "irc.homelien.no:6667"
 
+// also check Feature Detection (because NickTrack needs it anyway)
 func main() {
 	ircnick1 := "blatibalt1"
 	irccon := irc.IRC(ircnick1, "blatiblat")
@@ -39,6 +41,11 @@ func main() {
 				}
 				fmt.Printf("\n")
 			}
+
+			fmt.Println()
+			spew.Dump(irccon.Features)
+			fmt.Println()
+			spew.Dump(irccon.KnownFeatures)
 		}
 	}()
 	irccon.Loop()

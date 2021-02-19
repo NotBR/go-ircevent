@@ -60,7 +60,10 @@ type Connection struct {
 	stopped bool
 	quit    bool
 
-	Channels map[string]Channel
+	Channels      map[string]Channel
+	KnownFeatures KnownFeatures
+	Features      *Features
+	featuresMutex sync.Mutex
 }
 
 // A struct to represent an event.
