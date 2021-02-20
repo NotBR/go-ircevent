@@ -102,7 +102,20 @@ func (irc *Connection) SetupFeatureDetect() {
 			}
 			switch idx := strings.Index(arg, "="); idx {
 			case -1:
-				irc.Features.Params[arg] = true
+				if strings.HasPrefix(arg, "-") {
+					// we should check if its one of those that has defaults but in practice
+					// an IRC server isn't going to stop advertising one of those kinds of
+					// features
+
+					if _, ok := irc.Features.Params[arg[1:]]; ok {
+						delete(irc.Features.Params, arg[1:])
+					}
+					if _, ok := irc.Features.Options[arg[1:]]; ok {
+						delete(irc.Features.Options, arg[1:])
+					}
+				} else {
+					irc.Features.Params[arg] = true
+				}
 			default:
 				irc.Features.Options[arg[0:idx]] = arg[idx+1:]
 				if call, ok := knownFeaturesTypes[arg[0:idx]]; ok {
