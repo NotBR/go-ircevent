@@ -65,8 +65,7 @@ func (irc *Connection) PrefixModes() *PrefixModes {
 	if feat, ok := irc.GetFeature("PREFIX"); ok {
 		feat.Lock()
 		defer feat.Unlock()
-		ret, success := feat.parsedValue.(*PrefixModes)
-		if success {
+		if ret, ok := feat.parsedValue.(*PrefixModes); ok {
 			return ret
 		}
 	}
@@ -79,8 +78,7 @@ func (irc *Connection) NickLength() uint {
 	if feat, ok := irc.GetFeature("NICKLEN"); ok {
 		feat.Lock()
 		defer feat.Unlock()
-		ret, success := feat.parsedValue.(uint)
-		if success {
+		if ret, ok := feat.parsedValue.(uint); ok {
 			return ret
 		}
 	}
@@ -131,7 +129,6 @@ func (f *Features) fill() {
 		"NICKLEN": []func(string, *Feature){f.knownFeaturesNickLength},
 		"EXCEPTS": []func(string, *Feature){f.exceptsEncountered}, // Value = e
 		"INVEX":   []func(string, *Feature){f.invexEncountered},   // Value = I
-		// INVEX, EXEMPT?
 	}
 
 	defaults := map[string]string{
