@@ -60,7 +60,10 @@ type Connection struct {
 	stopped bool
 	quit    bool
 
-	Channels map[string]Channel
+	// leaving exposed for now, will be unexported in the future!
+	channelsMutex sync.Mutex
+	Channels      map[string]*Channel
+	features      *Features
 }
 
 // A struct to represent an event.
