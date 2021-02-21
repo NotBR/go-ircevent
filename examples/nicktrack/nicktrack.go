@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/thoja/go-ircevent"
+	"github.com/qaisjp/go-ircevent"
 	"sort"
 	"time"
 )
