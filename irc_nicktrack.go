@@ -13,19 +13,20 @@ type Channel struct {
 	// We should extract channel modes by handling the correct Event at some point in the future!
 	Mode string
 	// leaving exposed for now, will be unexported in the future!
-	Users map[string]User
+	Users  map[string]User
+	parent *Connection
 }
 
 func (ch *Channel) GetUser(name string) (User, bool) {
-	ch.Lock()
-	defer ch.Unlock()
+	ch.parent.stateLock.RLock()
+	defer ch.parent.stateLock.RUnlock()
 	ret, ok := ch.Users[name]
 	return ret, ok
 }
 
 func (ch *Channel) IterUsers(call func(string, User)) {
-	ch.Lock()
-	defer ch.Unlock()
+	ch.parent.stateLock.RLock()
+	defer ch.parent.stateLock.RUnlock()
 	for name, user := range ch.Users {
 		call(name, user)
 	}
@@ -48,18 +49,16 @@ func (irc *Connection) isModeChar(c rune) bool {
 }
 
 func (irc *Connection) getOrCreateChannel(name string) *Channel {
-	irc.channelsMutex.Lock()
-	defer irc.channelsMutex.Unlock()
 	if _, ok := irc.Channels[name]; !ok {
-		irc.Channels[name] = &Channel{Users: make(map[string]User)}
+		irc.Channels[name] = &Channel{Users: make(map[string]User), parent: irc}
 	}
 	return irc.Channels[name]
 }
 
 // GetChannel gets a channel by name that the Connection is on
 func (irc *Connection) GetChannel(name string) (*Channel, bool) {
-	irc.channelsMutex.Lock()
-	defer irc.channelsMutex.Unlock()
+	irc.stateLock.RLock()
+	defer irc.stateLock.RUnlock()
 	ret, ok := irc.Channels[name]
 	return ret, ok
 }
@@ -67,12 +66,10 @@ func (irc *Connection) GetChannel(name string) (*Channel, bool) {
 // IterChannels allows for calling code to provide a callable that is ran for each
 // channel the Connection is on
 func (irc *Connection) IterChannels(call func(string, *Channel)) {
-	irc.channelsMutex.Lock()
-	defer irc.channelsMutex.Unlock()
+	irc.stateLock.RLock()
+	defer irc.stateLock.RUnlock()
 	for name, ch := range irc.Channels {
-		ch.Lock()
 		call(name, ch)
-		ch.Unlock()
 	}
 }
 
@@ -84,6 +81,8 @@ func (irc *Connection) SetupNickTrack() {
 	// will typically receive this on channel joins and when NAMES is
 	// called via GetNicksOnChan
 	irc.AddCallback("353", func(e *Event) {
+		irc.stateLock.Lock()
+		defer irc.stateLock.Unlock()
 
 		// check if chan exists in map, if not make one
 		channel := irc.getOrCreateChannel(e.Arguments[2])
@@ -105,18 +104,16 @@ func (irc *Connection) SetupNickTrack() {
 				}
 			}
 
-			channel.Lock()
 			channel.Users[modenick[idx:]] = u
-			channel.Unlock()
 		}
 	})
 
 	// FIXME: I don't handle multiple modes in the same Event!!!
 	irc.AddCallback("MODE", func(e *Event) {
+		irc.stateLock.Lock()
+		defer irc.stateLock.Unlock()
 		if len(e.Arguments) == 3 { // 3 == for channel 2 == for user on server
 			channel := irc.getOrCreateChannel(e.Arguments[0])
-			channel.Lock()
-			defer channel.Unlock()
 
 			if _, ok := channel.Users[e.Arguments[2]]; ok != true {
 				channel.Users[e.Arguments[2]] = User{Mode: e.Arguments[1]}
@@ -133,42 +130,38 @@ func (irc *Connection) SetupNickTrack() {
 	// Maybe a User should keep a reference to all the channels they're in?
 	irc.AddCallback("NICK", func(e *Event) {
 		if len(e.Arguments) == 1 { // Sanity check
-			irc.channelsMutex.Lock()
-			defer irc.channelsMutex.Unlock()
+			irc.stateLock.Lock()
+			defer irc.stateLock.Unlock()
 			for _, ch := range irc.Channels {
-				ch.Lock()
 				if _, ok := ch.Users[e.Nick]; ok {
 					u := ch.Users[e.Nick]
 					u.Host = e.Host
 					ch.Users[e.Arguments[0]] = u
 					delete(ch.Users, e.Nick)
 				}
-				ch.Unlock()
 			}
 		}
 	})
 
 	irc.AddCallback("JOIN", func(e *Event) {
+		irc.stateLock.Lock()
+		defer irc.stateLock.Unlock()
 		channel := irc.getOrCreateChannel(e.Arguments[0])
-		channel.Lock()
-		defer channel.Unlock()
 		channel.Users[e.Nick] = User{Host: e.Source}
 	})
 
 	irc.AddCallback("PART", func(e *Event) {
+		irc.stateLock.Lock()
+		defer irc.stateLock.Unlock()
 		channel := irc.getOrCreateChannel(e.Arguments[0])
-		channel.Lock()
-		defer channel.Unlock()
 		delete(channel.Users, e.Nick)
 	})
 
 	irc.AddCallback("QUIT", func(e *Event) {
-		irc.channelsMutex.Lock()
-		defer irc.channelsMutex.Unlock()
+		irc.stateLock.Lock()
+		defer irc.stateLock.Unlock()
 		for _, ch := range irc.Channels {
-			ch.Lock()
 			delete(ch.Users, e.Nick)
-			ch.Unlock()
 		}
 	})
 }
