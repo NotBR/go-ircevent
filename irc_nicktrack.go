@@ -82,7 +82,6 @@ func (irc *Connection) SetupNickTrack() {
 	// called via GetNicksOnChan
 	irc.AddCallback("353", func(e *Event) {
 		irc.stateLock.Lock()
-		defer irc.stateLock.Unlock()
 
 		// check if chan exists in map, if not make one
 		channel := irc.getOrCreateChannel(e.Arguments[2])
@@ -106,12 +105,14 @@ func (irc *Connection) SetupNickTrack() {
 
 			channel.Users[modenick[idx:]] = u
 		}
+		irc.stateLock.Unlock()
+		e.Code = "STNAMES"
+		irc.RunCallbacks(e)
 	})
 
 	// FIXME: I don't handle multiple modes in the same Event!!!
 	irc.AddCallback("MODE", func(e *Event) {
 		irc.stateLock.Lock()
-		defer irc.stateLock.Unlock()
 		if len(e.Arguments) == 3 { // 3 == for channel 2 == for user on server
 			channel := irc.getOrCreateChannel(e.Arguments[0])
 
@@ -123,15 +124,17 @@ func (irc *Connection) SetupNickTrack() {
 				channel.Users[e.Arguments[2]] = u
 			}
 		}
+		irc.stateLock.Unlock()
+		e.Code = "STMODE"
+		irc.RunCallbacks(e)
 	})
 
 	// IRC doesn't report Channels when a nick is changed, so we have to figure this out
 	// based on prior acquired tracking information
 	// Maybe a User should keep a reference to all the channels they're in?
 	irc.AddCallback("NICK", func(e *Event) {
+		irc.stateLock.Lock()
 		if len(e.Arguments) == 1 { // Sanity check
-			irc.stateLock.Lock()
-			defer irc.stateLock.Unlock()
 			for _, ch := range irc.Channels {
 				if _, ok := ch.Users[e.Nick]; ok {
 					u := ch.Users[e.Nick]
@@ -141,27 +144,36 @@ func (irc *Connection) SetupNickTrack() {
 				}
 			}
 		}
+		irc.stateLock.Unlock()
+		e.Code = "STNICK"
+		irc.RunCallbacks(e)
 	})
 
 	irc.AddCallback("JOIN", func(e *Event) {
 		irc.stateLock.Lock()
-		defer irc.stateLock.Unlock()
 		channel := irc.getOrCreateChannel(e.Arguments[0])
 		channel.Users[e.Nick] = User{Host: e.Source}
+		irc.stateLock.Unlock()
+		e.Code = "STJOIN"
+		irc.RunCallbacks(e)
 	})
 
 	irc.AddCallback("PART", func(e *Event) {
 		irc.stateLock.Lock()
-		defer irc.stateLock.Unlock()
 		channel := irc.getOrCreateChannel(e.Arguments[0])
 		delete(channel.Users, e.Nick)
+		irc.stateLock.Unlock()
+		e.Code = "STPART"
+		irc.RunCallbacks(e)
 	})
 
 	irc.AddCallback("QUIT", func(e *Event) {
 		irc.stateLock.Lock()
-		defer irc.stateLock.Unlock()
 		for _, ch := range irc.Channels {
 			delete(ch.Users, e.Nick)
 		}
+		irc.stateLock.Unlock()
+		e.Code = "STQUIT"
+		irc.RunCallbacks(e)
 	})
 }
