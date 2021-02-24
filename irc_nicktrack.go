@@ -168,12 +168,13 @@ func (irc *Connection) SetupNickTrack() {
 	})
 
 	irc.AddCallback("QUIT", func(e *Event) {
+		// QUIT callbacks need to run *before* we clear the state!
+		e.Code = "STQUIT"
+		irc.RunCallbacks(e)
 		irc.stateLock.Lock()
 		for _, ch := range irc.Channels {
 			delete(ch.Users, e.Nick)
 		}
 		irc.stateLock.Unlock()
-		e.Code = "STQUIT"
-		irc.RunCallbacks(e)
 	})
 }
