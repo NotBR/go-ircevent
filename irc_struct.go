@@ -41,6 +41,9 @@ type Connection struct {
 
 	RealName string // The real name we want to display.
 	// If zero-value defaults to the user.
+	
+	// Local Address
+	LocalAddr	string
 
 	socket net.Conn
 	pwrite chan string

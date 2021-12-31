@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"os/exec"
 
 	"golang.org/x/text/encoding"
 )
@@ -460,12 +461,30 @@ func (irc *Connection) Connect(server string) error {
 	if len(irc.user) == 0 {
 		return errors.New("empty 'user'")
 	}
+	
+	var addr net.Addr 
+	{
+		if len(irc.LocalAddr) != 0 {
+			exec.Command("/sbin/ip", "-6", "addr", "add", irc.LocalAddr+"/128", "dev", "eth0", "nodad").Output()
+
+			addr, err = net.ResolveTCPAddr("tcp", "["+irc.LocalAddr+"]:0")
+			if err != nil {
+				return errors.New("LocalAddr failed to resolve")
+			}
+		} else {
+			addr, err = net.ResolveTCPAddr("tcp", "[::]:0")
+			if err != nil {
+                       		return errors.New("LocalAddr (::0) failed to resolve")
+                       	}
+		}
+	}
 
 	if irc.UseTLS {
-		dialer := &net.Dialer{Timeout: irc.Timeout}
+		dialer := &net.Dialer{Timeout: irc.Timeout, LocalAddr: addr}
 		irc.socket, err = tls.DialWithDialer(dialer, "tcp", irc.Server, irc.TLSConfig)
 	} else {
-		irc.socket, err = net.DialTimeout("tcp", irc.Server, irc.Timeout)
+		dialer := &net.Dialer{LocalAddr: addr}
+		irc.socket, err = dialer.Dial("tcp", irc.Server)
 	}
 	if err != nil {
 		return err
